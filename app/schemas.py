@@ -15,3 +15,7 @@ class Habit(HabitBase):
 
     class Config:
         from_attributes = True
+
+class HabitUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
