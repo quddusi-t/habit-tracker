@@ -7,6 +7,11 @@ router = APIRouter(
     tags=["habits"]
 )
 
+@router.get("/", response_model=list[schemas.Habit])
+def read_habits(db: Session = Depends(database.get_db)):
+    habits = db.query(models.Habit).all()
+    return habits
+
 @router.post("/", response_model=schemas.Habit)
 def create_habit(habit: schemas.HabitCreate, db: Session = Depends(database.get_db)):
     new_habit = models.Habit(name=habit.name, description=habit.description)
