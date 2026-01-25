@@ -8,5 +8,8 @@ venv/
 # Ignore SQLite database file
 habits.db
 
+# Ignore environment variables
+.env
+
 # Ignore VS Code settings
 .vscode/

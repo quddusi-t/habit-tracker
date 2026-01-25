@@ -1,10 +1,16 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+import os
 
-# PostgreSQL connection string
-# Format: postgresql://username:password@localhost:5432/database_name
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:malezya2652@localhost:5432/habit_tracker"
+load_dotenv()
+
+# Build connection string from environment variables
+SQLALCHEMY_DATABASE_URL = (
+    f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}"
+    f"@{os.getenv('POSTGRES_HOST')}:{os.getenv('POSTGRES_PORT')}/{os.getenv('POSTGRES_DB')}"
+)
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
