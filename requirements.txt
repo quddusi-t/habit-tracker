@@ -3,3 +3,4 @@ uvicorn
 sqlalchemy
 pydantic
 passlib[bcrypt]
+psycopg2-binary
