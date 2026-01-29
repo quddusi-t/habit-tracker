@@ -28,15 +28,6 @@ def read_habit(id: int, db: Session = Depends(database.get_db)):
         raise HTTPException(status_code=404, detail="Habit not found")
     return habit
 
-@router.put("/{id}", response_model=schemas.Habit)
-def update_habit(id: int, habit: schemas.HabitCreate, db: Session = Depends(database.get_db)):
-    db_habit = db.query(models.Habit).filter(models.Habit.id == id).first()
-    db_habit.name = habit.name
-    db_habit.description = habit.description
-    db.commit()
-    db.refresh(db_habit)
-    return db_habit
-
 @router.delete("/{id}")
 def delete_habit(id: int, db: Session = Depends(database.get_db)):
     db_habit = db.query(models.Habit).filter(models.Habit.id == id).first()
@@ -50,7 +41,7 @@ def patch_habit(id: int, habit_update: schemas.HabitUpdate, db: Session = Depend
     if db_habit is None:
         raise HTTPException(status_code=404, detail="Habit not found")
 
-    update_data = habit_update.dict(exclude_unset=True)
+    update_data = habit_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_habit, field, value)
 
