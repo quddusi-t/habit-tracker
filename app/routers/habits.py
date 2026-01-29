@@ -98,12 +98,6 @@ def stop_logging_session(habit_id: int, log_id: int, db: Session = Depends(datab
     db.commit()
     db.refresh(log)
     return log
-    
-    log.end_time = end_time
-    log.duration_min = duration_min
-    db.commit()
-    db.refresh(log)
-    return log
 
 
 @router.get("/{habit_id}/logs", response_model=list[schemas.HabitLog])
