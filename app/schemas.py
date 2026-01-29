@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
 
@@ -54,3 +54,28 @@ class HabitLog(HabitLogBase):
 
     class Config:
         from_attributes = True
+
+# -------------------------
+# User Schemas
+# -------------------------
+
+# For creating a user (signup request)
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+# For returning user info (excluding password)
+class User(BaseModel):
+    id: int
+    email: EmailStr
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+
+
+
