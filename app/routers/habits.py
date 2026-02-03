@@ -1,15 +1,29 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app import models, schemas, database
+from app import models, schemas, database, utils
 from datetime import datetime, timezone
+from fastapi.security import OAuth2PasswordBearer
 
 router = APIRouter(
     prefix="/habits",
     tags=["habits"]
 )
 
+
+# Define the OAuth2 scheme once
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
 @router.get("/", response_model=list[schemas.Habit])
-def read_habits(db: Session = Depends(database.get_db)):
+def read_habits(
+    db: Session = Depends(database.get_db),
+    token: str = Depends(oauth2_scheme)
+):
+    # Verify token
+    payload = utils.verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    # If token is valid, continue
     habits = db.query(models.Habit).all()
     return habits
 

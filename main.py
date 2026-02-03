@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
 from app import models, database
-from app.routers import habits, habit_logs, users
+from app.routers import habits, habit_logs, users, auth
 
 
 
@@ -14,6 +14,7 @@ app = FastAPI(title="Habit Tracker")
 app.include_router(habits.router)
 app.include_router(habit_logs.router)
 app.include_router(users.router)
+app.include_router(auth.router)
 
 # Set up CORS middleware
 app.add_middleware(
