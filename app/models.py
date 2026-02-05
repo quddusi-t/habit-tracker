@@ -37,6 +37,7 @@ class HabitLog(Base):
     end_time = Column(DateTime(timezone=True), nullable=True)
     duration_min = Column(Integer, nullable=True)
     notes = Column(String, nullable=True)
+    is_manual = Column(Boolean, default=False)
 
     habit_id = Column(Integer, ForeignKey("habits.id"))
     habit = relationship("Habit", back_populates="logs")
