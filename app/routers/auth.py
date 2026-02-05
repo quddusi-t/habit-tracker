@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from app import models, schemas, utils
+from app import models, schemas, utils, crud
 from app.database import get_db
 
 router = APIRouter(
@@ -16,7 +16,7 @@ def login(
     ):
     # 1. Find user by email
     # form_data.username is used even if the field is technically an email
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    user = crud.get_user_by_email(db, form_data.username)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
