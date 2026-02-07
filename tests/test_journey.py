@@ -1,23 +1,27 @@
 from fastapi.testclient import TestClient
 from main import app
+import uuid
 
 client = TestClient(app)
 
 def test_user_journey():
+    # Use unique email to avoid conflicts on repeated test runs
+    unique_email = f"journey-{uuid.uuid4()}@example.com"
+    
     # 1. Create user
     response = client.post(
         "/users/",
-        json={"email": "journey2@example.com", "password": "secret123"}
+        json={"email": unique_email, "password": "secret123"}
     )
     assert response.status_code in (200, 201)
     user = response.json()
     assert "id" in user
-    assert user["email"] == "journey2@example.com"
+    assert user["email"] == unique_email
 
     # 2. Log in (FastAPI OAuth2PasswordRequestForm expects form data)
     login_response = client.post(
         "/auth/login",
-        data={"username": "journey2@example.com", "password": "secret123"}
+        data={"username": unique_email, "password": "secret123"}
     )
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]

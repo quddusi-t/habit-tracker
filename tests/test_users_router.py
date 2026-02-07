@@ -1,12 +1,16 @@
 from fastapi.testclient import TestClient
 from main import app
+import uuid
 
 client = TestClient(app)
 
 def test_create_user_endpoint():
+    # Use unique email to avoid conflicts on repeated test runs
+    unique_email = f"clienttest-{uuid.uuid4()}@example.com"
+    
     response = client.post(
         "/users/", 
-        json={"email": "clienttest3@example.com", "password": "secret123"}
+        json={"email": unique_email, "password": "secret123"}
         )
 
     # Check HTTP response status
@@ -14,7 +18,7 @@ def test_create_user_endpoint():
 
     data = response.json()
     # Validate response data
-    assert data["email"] == "clienttest3@example.com"
+    assert data["email"] == unique_email
     assert "id" in data
     assert "created_at" in data
     assert "hashed_password" not in data  # Ensure password is not exposed
