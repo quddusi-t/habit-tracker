@@ -19,3 +19,4 @@ def db():
         session.close()
         # Drop the database tables
         Base.metadata.drop_all(bind=engine)
+
