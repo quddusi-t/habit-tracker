@@ -1,6 +1,7 @@
 """
 Tests for habit CRUD operations: Create, Read, Update, Delete
 """
+from app import schemas
 
 
 class TestHabitOperations:
@@ -16,10 +17,13 @@ class TestHabitOperations:
         )
         
         assert response.status_code == 200
-        habit = response.json()
-        assert habit["id"] == habit_id
-        assert habit["name"] == "Test Habit"
-        assert habit["is_timer"] is True
+        habit_data = response.json()
+        
+        # Validate against schema
+        habit = schemas.Habit(**habit_data)
+        assert habit.id == habit_id
+        assert habit.name == "Test Habit"
+        assert habit.is_timer is True
     
     def test_get_all_habits(self, client, auth_headers, test_habit):
         """Test retrieving all habits for authenticated user"""
@@ -29,12 +33,15 @@ class TestHabitOperations:
         )
         
         assert response.status_code == 200
-        habits = response.json()
-        assert isinstance(habits, list)
-        assert len(habits) >= 1
+        habits_data = response.json()
+        assert isinstance(habits_data, list)
+        assert len(habits_data) >= 1
+        
+        # Validate all habits conform to schema
+        habits = [schemas.Habit(**h) for h in habits_data]
         
         # Verify our test habit is in the list
-        habit_ids = [h["id"] for h in habits]
+        habit_ids = [h.id for h in habits]
         assert test_habit["id"] in habit_ids
     
     def test_update_habit_name(self, client, auth_headers, test_habit):
@@ -48,9 +55,12 @@ class TestHabitOperations:
         )
         
         assert response.status_code == 200
-        updated_habit = response.json()
-        assert updated_habit["name"] == "Updated Habit Name"
-        assert updated_habit["id"] == habit_id
+        updated_data = response.json()
+        
+        # Validate schema and fields
+        updated_habit = schemas.Habit(**updated_data)
+        assert updated_habit.name == "Updated Habit Name"
+        assert updated_habit.id == habit_id
     
     def test_update_habit_description(self, client, auth_headers, test_habit):
         """Test updating a habit's description"""
@@ -147,11 +157,15 @@ class TestHabitOperations:
         )
         
         assert response.status_code in (200, 201)
-        habit = response.json()
-        assert habit["name"] == "Minimal Habit"
-        # Check defaults are applied
-        assert "id" in habit
-        assert "created_at" in habit
+        habit_data = response.json()
+        
+        # Validate schema
+        habit = schemas.Habit(**habit_data)
+        assert habit.name == "Minimal Habit"
+        assert habit.id is not None
+        assert habit.created_at is not None
+        assert habit.is_timer is True  # Check default
+        assert habit.allow_manual_override is True  # Check default
     
     def test_get_nonexistent_habit(self, client, auth_headers):
         """Test fetching a habit that doesn't exist"""
