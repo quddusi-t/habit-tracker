@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from .database import Base
@@ -10,7 +10,8 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    
+    freeze_balance = Column(Integer, default=0)  # Number of streak freezes available
+    freeze_used_in_row = Column(Integer, default=0)  # Consecutive freezes used
 
     habits = relationship("Habit", back_populates="owner")
 
@@ -22,6 +23,9 @@ class Habit(Base):
     description = Column(String, nullable=True)
     is_timer = Column(Boolean, default=True) # True = timed habit, False = instant streak 
     allow_manual_override = Column(Boolean, default=True)
+    is_freezable = Column(Boolean, default=True)  # Whether streak freezes can be used
+    danger_start_pct = Column(Float, default=0.7)  # Percentage of day when habit becomes "in danger"
+    current_streak = Column(Integer, default=0)  # Current active streak count
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user_id = Column(Integer, ForeignKey("users.id"))
@@ -38,6 +42,7 @@ class HabitLog(Base):
     duration_min = Column(Integer, nullable=True)
     notes = Column(String, nullable=True)
     is_manual = Column(Boolean, default=False)
+    status = Column(String, default='pending')  # pending, completed, missed, frozen
 
     habit_id = Column(Integer, ForeignKey("habits.id"))
     habit = relationship("Habit", back_populates="logs")

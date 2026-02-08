@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 import os
 from dotenv import load_dotenv
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 
 load_dotenv()  # take environment variables from .env
 
@@ -30,3 +32,15 @@ def verify_token(token: str):
         return payload
     except JWTError:
         return None
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
+    """Extract user_id from token."""
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return int(user_id)
