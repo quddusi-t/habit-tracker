@@ -1,9 +1,13 @@
 # Ignore Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
 # Ignore virtual environments
 venv/
+env/
+ENV/
 
 # Ignore SQLite database file
 habits.db
@@ -13,3 +17,21 @@ habits.db
 
 # Ignore VS Code settings
 .vscode/
+
+# Ignore testing artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+*.cover
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore distribution/packaging
+*.egg-info/
+dist/
+build/
+
+# Ignore logs
+*.log
