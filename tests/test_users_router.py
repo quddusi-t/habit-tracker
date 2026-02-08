@@ -14,7 +14,7 @@ def test_create_user_endpoint():
         )
 
     # Check HTTP response status
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()
     # Validate response data

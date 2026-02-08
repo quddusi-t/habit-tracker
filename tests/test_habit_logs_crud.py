@@ -17,7 +17,7 @@ class TestLoggingLifecycle:
             f"/habit_logs/{habit_id}/logs/start",
             headers=auth_headers
         )
-        assert start_response.status_code in (200, 201)
+        assert start_response.status_code == 201
         log_data = start_response.json()
         log_id = log_data["id"]
         

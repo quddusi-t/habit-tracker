@@ -9,7 +9,7 @@ router = APIRouter(
     tags=["users"],
 )
 
-@router.post("/", response_model=schemas.User)
+@router.post("/", response_model=schemas.User, status_code=201)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     new_user = crud.create_user(db, user)
     if new_user is None:

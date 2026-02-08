@@ -8,7 +8,7 @@ router = APIRouter(
     tags=["habit_logs"]
 )
 
-@router.post("/{habit_id}/logs/start", response_model=schemas.HabitLog)
+@router.post("/{habit_id}/logs/start", response_model=schemas.HabitLog, status_code=201)
 def start_logging_session(habit_id: int, db: Session = Depends(database.get_db)):
     habit = crud.get_habit_by_id(db, habit_id)
     if habit is None:

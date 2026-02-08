@@ -12,7 +12,7 @@ def test_user_journey(client, auth_headers):
         json={"name": "Drink Water", "description": "Stay hydrated"},
         headers=auth_headers
     )
-    assert habit_response.status_code in (200, 201)
+    assert habit_response.status_code == 201
     habit = habit_response.json()
     assert habit["name"] == "Drink Water"
     habit_id = habit["id"]

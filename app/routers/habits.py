@@ -21,7 +21,7 @@ def read_habits(db: Session = Depends(database.get_db), token: str = Depends(oau
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return crud.get_all_habits(db)
 
-@router.post("/", response_model=schemas.Habit)
+@router.post("/", response_model=schemas.Habit, status_code=201)
 def create_habit(habit: schemas.HabitCreate, db: Session = Depends(database.get_db)):
     return crud.create_habit(db, habit)
 
