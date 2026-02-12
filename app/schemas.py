@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 # -------------------------
 # Habit Schemas
@@ -70,6 +70,46 @@ class HabitStatus(BaseModel):
     current_streak: int
     in_danger: bool
     color: str  # yellow, orange, red, green, blue
+
+# -------------------------
+# Habit Stats Schemas
+# -------------------------
+
+class TimerHabitStats(BaseModel):
+    total_time_minutes: int
+    avg_session_minutes: float
+    sessions_count: int
+    best_day_minutes: int
+    this_week_minutes: int
+    this_month_minutes: int
+    median_session_minutes: float
+
+class ManualHabitStats(BaseModel):
+    total_completions: int
+    completion_rate_percent: float
+    best_streak: int
+    days_since_created: int
+
+class HabitStreaks(BaseModel):
+    current: int
+    best: int
+
+class HabitFreezes(BaseModel):
+    used: int
+    remaining: int
+
+class HabitStats(BaseModel):
+    """Comprehensive stats for a habit"""
+    habit_id: int
+    habit_name: str
+    habit_type: str  # "timer" or "manual"
+    stats: Union[TimerHabitStats, ManualHabitStats]
+    streaks: HabitStreaks
+    freezes: HabitFreezes
+    days_since_created: int
+    streak_start_date: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 # -------------------------
 # User Schemas

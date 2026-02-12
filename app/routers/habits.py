@@ -90,3 +90,10 @@ def get_habit_status_endpoint(id: int, db: Session = Depends(database.get_db), u
         raise HTTPException(status_code=404, detail="Habit not found")
     return habit_status
 
+@router.get("/{id}/stats", response_model=schemas.HabitStats)
+def get_habit_stats_endpoint(id: int, db: Session = Depends(database.get_db), user_id: int = Depends(utils.get_current_user_id)):
+    """Get comprehensive stats and analytics for a habit."""
+    habit_stats = crud.get_habit_stats(db, id, user_id)
+    if habit_stats is None:
+        raise HTTPException(status_code=404, detail="Habit not found")
+    return habit_stats

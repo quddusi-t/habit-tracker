@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from datetime import datetime, timezone, timedelta
 from app.utils import hash_password
+from statistics import median, StatisticsError
 
 # -------------------------
 # Habit utilities
@@ -308,5 +309,176 @@ def get_habit_status(db: Session, habit_id: int, user_id: int) -> dict:
         "in_danger": in_danger,
         "color": color
     }
+
+# -------------------------
+# Statistics and Reporting
+# -------------------------
+
+def get_timer_habit_stats(db: Session, habit: models.Habit) -> dict:
+    """Calculate stats for a timer habit."""
+    all_logs = db.query(models.HabitLog).filter(
+        models.HabitLog.habit_id == habit.id,
+        models.HabitLog.status == "completed",
+        models.HabitLog.end_time != None
+    ).all()
+    
+    sessions_count = len(all_logs)
+    
+    if sessions_count == 0:
+        return {
+            "total_time_minutes": 0,
+            "avg_session_minutes": 0.0,
+            "sessions_count": 0,
+            "best_day_minutes": 0,
+            "this_week_minutes": 0,
+            "this_month_minutes": 0,
+            "median_session_minutes": 0.0
+        }
+    
+    # Total time
+    total_time_minutes = sum(log.duration_min or 0 for log in all_logs)
+    avg_session_minutes = total_time_minutes / sessions_count
+    
+    # Median
+    durations = [log.duration_min or 0 for log in all_logs if log.duration_min is not None]
+    median_session_minutes = median(durations) if durations else 0.0
+    
+    # Best day
+    day_totals = {}
+    for log in all_logs:
+        date_key = log.start_time.date()
+        day_totals[date_key] = day_totals.get(date_key, 0) + (log.duration_min or 0)
+    best_day_minutes = max(day_totals.values()) if day_totals else 0
+    
+    # This week (last 7 days)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    this_week_minutes = sum(
+        log.duration_min or 0 for log in all_logs 
+        if log.start_time >= week_ago
+    )
+    
+    # This month (last 30 days)
+    month_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    this_month_minutes = sum(
+        log.duration_min or 0 for log in all_logs 
+        if log.start_time >= month_ago
+    )
+    
+    return {
+        "total_time_minutes": total_time_minutes,
+        "avg_session_minutes": round(avg_session_minutes, 2),
+        "sessions_count": sessions_count,
+        "best_day_minutes": best_day_minutes,
+        "this_week_minutes": this_week_minutes,
+        "this_month_minutes": this_month_minutes,
+        "median_session_minutes": round(median_session_minutes, 2)
+    }
+
+def get_manual_habit_stats(db: Session, habit: models.Habit) -> dict:
+    """Calculate stats for a manual habit."""
+    # Total completions
+    completed_logs = db.query(models.HabitLog).filter(
+        models.HabitLog.habit_id == habit.id,
+        models.HabitLog.status == "completed"
+    ).all()
+    total_completions = len(completed_logs)
+    
+    # Days since created
+    days_since_created = (datetime.now(timezone.utc) - habit.created_at).days
+    
+    # Completion rate
+    completion_rate_percent = 0.0
+    if days_since_created > 0:
+        completion_rate_percent = (total_completions / days_since_created) * 100
+    
+    # Best streak - track from completion gaps
+    all_complete_dates = sorted(set(log.start_time.date() for log in completed_logs))
+    best_streak = 1 if all_complete_dates else 0
+    
+    if len(all_complete_dates) > 1:
+        current_streak_calc = 1
+        for i in range(1, len(all_complete_dates)):
+            if (all_complete_dates[i] - all_complete_dates[i-1]).days == 1:
+                current_streak_calc += 1
+                best_streak = max(best_streak, current_streak_calc)
+            else:
+                current_streak_calc = 1
+    
+    return {
+        "total_completions": total_completions,
+        "completion_rate_percent": round(completion_rate_percent, 2),
+        "best_streak": best_streak,
+        "days_since_created": days_since_created
+    }
+
+def get_habit_stats(db: Session, habit_id: int, user_id: int) -> dict | None:
+    """Get comprehensive stats for a habit."""
+    habit = get_habit_by_id(db, habit_id)
+    if not habit or habit.user_id != user_id:
+        return None
+    
+    user = get_user_by_id(db, user_id)
+    
+    # Calculate days since created
+    days_since_created = (datetime.now(timezone.utc) - habit.created_at).days
+    
+    # Get type-specific stats
+    if habit.is_timer:
+        stats = get_timer_habit_stats(db, habit)
+        habit_type = "timer"
+    else:
+        stats = get_manual_habit_stats(db, habit)
+        habit_type = "manual"
+    
+    # Calculate best streak from logs (for now, assume it equals current_streak)
+    # In future, we could track best_streak in habit table
+    best_streak = habit.current_streak
+    
+    # Count freezes used
+    freeze_logs = db.query(models.HabitLog).filter(
+        models.HabitLog.habit_id == habit.id,
+        models.HabitLog.status == "frozen"
+    ).count()
+    
+    # Get streak start date (when did current streak begin?)
+    streak_start_date = None
+    if habit.current_streak > 0:
+        all_completed = db.query(models.HabitLog).filter(
+            models.HabitLog.habit_id == habit.id,
+            models.HabitLog.status.in_(["completed", "frozen"])
+        ).order_by(models.HabitLog.start_time.desc()).all()
+        
+        if all_completed:
+            streak_count = 0
+            for i, log in enumerate(all_completed):
+                if i == 0:
+                    streak_count = 1
+                    continue
+                prev_date = all_completed[i-1].start_time.date()
+                curr_date = log.start_time.date()
+                if (prev_date - curr_date).days == 1:
+                    streak_count += 1
+                else:
+                    break
+            if streak_count == habit.current_streak and len(all_completed) > 0:
+                streak_start_date = all_completed[streak_count - 1].start_time
+    
+    return {
+        "habit_id": habit_id,
+        "habit_name": habit.name,
+        "habit_type": habit_type,
+        "stats": stats,
+        "streaks": {
+            "current": habit.current_streak,
+            "best": best_streak
+        },
+        "freezes": {
+            "used": freeze_logs,
+            "remaining": user.freeze_balance if user else 0
+        },
+        "days_since_created": days_since_created,
+        "streak_start_date": streak_start_date
+    }
+
 
 
