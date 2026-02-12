@@ -23,6 +23,7 @@ def create_habit(habit: schemas.HabitCreate, db: Session = Depends(database.get_
         allow_manual_override=habit.allow_manual_override,
         is_freezable=habit.is_freezable,
         danger_start_pct=habit.danger_start_pct,
+        freezes_remaining=2,  # Initialize with 2 freezes per habit
         user_id=user_id
     )
     db.add(new_habit)

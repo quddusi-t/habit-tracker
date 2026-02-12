@@ -252,13 +252,16 @@ def use_freeze(db: Session, habit_id: int, user_id: int) -> dict:
         )
         db.add(freeze_log)
     
+    # Decrement per-habit freezes remaining
+    habit.freezes_remaining -= 1
+    
     db.commit()
-    db.refresh(user)
+    db.refresh(habit)
     
     return {
         "success": True,
-        "freeze_balance": user.freeze_balance,
-        "freeze_used_in_row": user.freeze_used_in_row
+        "freezes_remaining": habit.freezes_remaining,
+        "freeze_balance": user.freeze_balance  # Kept for backward compatibility
     }
 
 def get_percent_of_day_elapsed() -> float:
@@ -474,7 +477,7 @@ def get_habit_stats(db: Session, habit_id: int, user_id: int) -> dict | None:
         },
         "freezes": {
             "used": freeze_logs,
-            "remaining": user.freeze_balance if user else 0
+            "remaining": habit.freezes_remaining  # Per-habit freezes remaining
         },
         "days_since_created": days_since_created,
         "streak_start_date": streak_start_date

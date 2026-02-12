@@ -26,6 +26,7 @@ class Habit(Base):
     is_freezable = Column(Boolean, default=True)  # Whether streak freezes can be used
     danger_start_pct = Column(Float, default=0.7)  # Percentage of day when habit becomes "in danger"
     current_streak = Column(Integer, default=0)  # Current active streak count
+    freezes_remaining = Column(Integer, default=2)  # Freezes available for this habit (per-habit)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user_id = Column(Integer, ForeignKey("users.id"))
