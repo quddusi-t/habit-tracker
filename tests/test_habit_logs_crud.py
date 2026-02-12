@@ -90,3 +90,50 @@ class TestLoggingLifecycle:
         assert our_log.habit_id == habit_id
         assert our_log.end_time is not None
         assert our_log.duration_min is not None
+
+    def test_multiple_sessions_same_day_increment_once(self, client, auth_headers, test_habit):
+        """Multiple timer sessions in a day should count as one completion."""
+        habit_id = test_habit["id"]
+
+        # First session
+        start_response = client.post(
+            f"/habit_logs/{habit_id}/logs/start",
+            headers=auth_headers
+        )
+        log_id = start_response.json()["id"]
+
+        time.sleep(0.05)
+
+        stop_response = client.patch(
+            f"/habit_logs/{habit_id}/logs/{log_id}/stop",
+            headers=auth_headers
+        )
+        assert stop_response.status_code == 200
+
+        habit_response = client.get(f"/habits/{habit_id}", headers=auth_headers)
+        habit = schemas.Habit(**habit_response.json())
+        assert habit.current_streak == 1
+
+        # Second session same day
+        start_response = client.post(
+            f"/habit_logs/{habit_id}/logs/start",
+            headers=auth_headers
+        )
+        log_id = start_response.json()["id"]
+
+        time.sleep(0.05)
+
+        stop_response = client.patch(
+            f"/habit_logs/{habit_id}/logs/{log_id}/stop",
+            headers=auth_headers
+        )
+        assert stop_response.status_code == 200
+
+        habit_response = client.get(f"/habits/{habit_id}", headers=auth_headers)
+        habit = schemas.Habit(**habit_response.json())
+        assert habit.current_streak == 1
+
+        status_response = client.get(f"/habits/{habit_id}/status", headers=auth_headers)
+        assert status_response.status_code == 200
+        status = status_response.json()
+        assert status["status"] == "completed"

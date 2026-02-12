@@ -1,8 +1,37 @@
 """Tests for streak tracking and freeze system."""
 import pytest
-from app import schemas
+from app import schemas, models
+from app.database import SessionLocal
 from tests.conftest import client, auth_headers, test_habit
-import time
+
+
+def set_habit_and_user_state(
+    habit_id: int,
+    current_streak: int | None = None,
+    freeze_balance: int | None = None,
+    freeze_used_in_row: int | None = None
+):
+    with SessionLocal() as db:
+        habit = db.query(models.Habit).filter(models.Habit.id == habit_id).first()
+        if habit is None:
+            return
+        if current_streak is not None:
+            habit.current_streak = current_streak
+        user = db.query(models.User).filter(models.User.id == habit.user_id).first()
+        if user:
+            if freeze_balance is not None:
+                user.freeze_balance = freeze_balance
+            if freeze_used_in_row is not None:
+                user.freeze_used_in_row = freeze_used_in_row
+        db.commit()
+
+
+def get_user_state(habit_id: int) -> models.User | None:
+    with SessionLocal() as db:
+        habit = db.query(models.Habit).filter(models.Habit.id == habit_id).first()
+        if habit is None:
+            return None
+        return db.query(models.User).filter(models.User.id == habit.user_id).first()
 
 
 class TestStreakTracking:
@@ -27,24 +56,25 @@ class TestStreakTracking:
         assert habit.current_streak == 1
 
     def test_complete_habit_multiple_times(self, client, auth_headers, test_habit):
-        """Completing multiple times should increment streak each time."""
+        """Completing multiple times should only count once per day."""
         habit_id = test_habit["id"]
         
-        for i in range(1, 4):
-            response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
-            data = response.json()
-            assert data["streak"] == i
+        response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
+        assert response.status_code == 200
+
+        response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
+        assert response.status_code == 400
+
+        habit_response = client.get(f"/habits/{habit_id}", headers=auth_headers)
+        habit = schemas.Habit(**habit_response.json())
+        assert habit.current_streak == 1
 
     def test_earn_freeze_every_7_days(self, client, auth_headers, test_habit):
         """Should earn a freeze every 7 days of streak."""
         habit_id = test_habit["id"]
-        
-        # Complete 6 times - no freeze
-        for i in range(6):
-            response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
-            data = response.json()
-            assert data["freeze_earned"] is False
-        
+
+        set_habit_and_user_state(habit_id, current_streak=6, freeze_balance=0)
+
         # 7th completion - earn freeze
         response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
         data = response.json()
@@ -56,11 +86,10 @@ class TestStreakTracking:
     def test_earn_second_freeze_at_14_days(self, client, auth_headers, test_habit):
         """Should earn second freeze at 14 days."""
         habit_id = test_habit["id"]
-        
-        # Complete 14 times
-        for i in range(14):
-            response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
-        
+
+        set_habit_and_user_state(habit_id, current_streak=13, freeze_balance=1)
+
+        response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
         data = response.json()
         assert data["streak"] == 14
         assert data["freeze_balance"] == 2  # Max of 2
@@ -68,11 +97,10 @@ class TestStreakTracking:
     def test_max_freeze_balance_is_2(self, client, auth_headers, test_habit):
         """Freeze balance should not exceed 2."""
         habit_id = test_habit["id"]
-        
-        # Complete 21 times (3 x 7)
-        for i in range(21):
-            response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
-        
+
+        set_habit_and_user_state(habit_id, current_streak=20, freeze_balance=2)
+
+        response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
         data = response.json()
         assert data["freeze_balance"] == 2  # Should stay at 2, not 3
 
@@ -83,10 +111,8 @@ class TestFreezeUsage:
     def test_use_freeze_successfully(self, client, auth_headers, test_habit):
         """Using a freeze should work if balance available."""
         habit_id = test_habit["id"]
-        
-        # First earn a freeze
-        for i in range(7):
-            client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
+
+        set_habit_and_user_state(habit_id, freeze_balance=1, freeze_used_in_row=0)
         
         # Use the freeze
         response = client.post(f"/habits/{habit_id}/freeze", headers=auth_headers)
@@ -108,10 +134,8 @@ class TestFreezeUsage:
     def test_use_two_freezes_in_a_row(self, client, auth_headers, test_habit):
         """Should allow using 2 freezes in a row."""
         habit_id = test_habit["id"]
-        
-        # Earn 2 freezes
-        for i in range(14):
-            client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
+
+        set_habit_and_user_state(habit_id, freeze_balance=2, freeze_used_in_row=0)
         
         # Use first freeze
         response1 = client.post(f"/habits/{habit_id}/freeze", headers=auth_headers)
@@ -128,32 +152,25 @@ class TestFreezeUsage:
         habit_payload = {"name": "Test Habit", "is_freezable": True}
         habit_response = client.post("/habits/", json=habit_payload, headers=auth_headers)
         habit_id = habit_response.json()["id"]
-        
-        # Earn 2 freezes
-        for i in range(14):
-            client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
-        
-        # Use 2 freezes
-        client.post(f"/habits/{habit_id}/freeze", headers=auth_headers)
-        client.post(f"/habits/{habit_id}/freeze", headers=auth_headers)
-        
-        # Try to use third - should fail even if we had balance
-        # (We don't have balance now, but the in_a_row check happens first)
+
+        set_habit_and_user_state(habit_id, freeze_balance=1, freeze_used_in_row=2)
+
+        # Try to use third - should fail even with balance
         response = client.post(f"/habits/{habit_id}/freeze", headers=auth_headers)
         assert response.status_code == 400
 
     def test_freeze_counter_resets_on_completion(self, client, auth_headers, test_habit):
         """freeze_used_in_row should reset when completing a habit."""
         habit_id = test_habit["id"]
-        
-        # Earn and use a freeze
-        for i in range(7):
-            client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
-        client.post(f"/habits/{habit_id}/freeze", headers=auth_headers)
-        
-        # Complete habit again - should reset counter
+
+        set_habit_and_user_state(habit_id, freeze_balance=1, freeze_used_in_row=2)
+
         response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
-        # The response doesn't show freeze_used_in_row directly, but next freeze should work
+        assert response.status_code == 200
+
+        user = get_user_state(habit_id)
+        assert user is not None
+        assert user.freeze_used_in_row == 0
 
     def test_non_freezable_habit_cannot_use_freeze(self, client, auth_headers):
         """Habits with is_freezable=False cannot use freezes."""
@@ -197,8 +214,8 @@ class TestHabitStatus:
         status = schemas.HabitStatus(**response.json())
         
         assert status.current_streak == 1
-        # Note: Status might not be "completed" because we track it in habit_logs
-        # and complete_habit doesn't create a log, just updates streak
+        assert status.status == "completed"
+        assert status.color == "green"
 
     def test_habit_status_nonexistent(self, client, auth_headers):
         """Should return 404 for nonexistent habit."""

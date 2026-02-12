@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app import models, schemas
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from app.utils import hash_password
 
 # -------------------------
@@ -67,6 +67,16 @@ def stop_log(db: Session, log):
     duration_min = int((end_time - log.start_time).total_seconds() / 60)
     log.end_time = end_time
     log.duration_min = duration_min
+    log.status = "completed"
+
+    habit = log.habit or get_habit_by_id(db, log.habit_id)
+    user = get_user_by_id(db, habit.user_id) if habit else None
+    if habit and user and not has_completed_today(db, habit.id, end_time, exclude_log_id=log.id):
+        habit.current_streak += 1
+        if habit.is_freezable and habit.current_streak > 0 and habit.current_streak % 7 == 0:
+            if user.freeze_balance < 2:
+                user.freeze_balance += 1
+        user.freeze_used_in_row = 0
     db.commit()
     db.refresh(log)
     return log
@@ -79,6 +89,41 @@ def get_active_log(db: Session, habit_id: int):
         models.HabitLog.habit_id == habit_id,
         models.HabitLog.end_time == None
     ).first()
+
+def get_day_bounds(target_dt: datetime | None = None) -> tuple[datetime, datetime]:
+    now = target_dt or datetime.now(timezone.utc)
+    day_start = datetime.combine(now.date(), datetime.min.time()).replace(tzinfo=timezone.utc)
+    day_end = day_start + timedelta(days=1)
+    return day_start, day_end
+
+def get_today_logs(db: Session, habit_id: int, target_dt: datetime | None = None):
+    day_start, day_end = get_day_bounds(target_dt)
+    return db.query(models.HabitLog).filter(
+        models.HabitLog.habit_id == habit_id,
+        models.HabitLog.start_time >= day_start,
+        models.HabitLog.start_time < day_end
+    ).order_by(models.HabitLog.start_time.asc()).all()
+
+def has_completed_today(db: Session, habit_id: int, target_dt: datetime | None = None, exclude_log_id: int | None = None) -> bool:
+    day_start, day_end = get_day_bounds(target_dt)
+    query = db.query(models.HabitLog).filter(
+        models.HabitLog.habit_id == habit_id,
+        models.HabitLog.start_time >= day_start,
+        models.HabitLog.start_time < day_end,
+        models.HabitLog.status.in_(["completed", "frozen"])
+    )
+    if exclude_log_id is not None:
+        query = query.filter(models.HabitLog.id != exclude_log_id)
+    return db.query(query.exists()).scalar()
+
+def get_today_status(db: Session, habit_id: int, target_dt: datetime | None = None) -> str:
+    logs = get_today_logs(db, habit_id, target_dt)
+    statuses = {log.status for log in logs}
+    if "completed" in statuses:
+        return "completed"
+    if "frozen" in statuses:
+        return "frozen"
+    return "pending"
 
 # -------------------------
 # User utilities    
@@ -134,6 +179,20 @@ def complete_habit(db: Session, habit_id: int, user_id: int) -> dict:
         return {"success": False, "error": "Habit not found"}
     
     user = get_user_by_id(db, user_id)
+
+    if has_completed_today(db, habit_id):
+        return {"success": False, "error": "Habit already completed today"}
+
+    now = datetime.now(timezone.utc)
+    completion_log = models.HabitLog(
+        habit_id=habit_id,
+        start_time=now,
+        end_time=now,
+        duration_min=0,
+        is_manual=True,
+        status="completed"
+    )
+    db.add(completion_log)
     
     # Increment streak
     habit.current_streak += 1
@@ -143,11 +202,7 @@ def complete_habit(db: Session, habit_id: int, user_id: int) -> dict:
         if user.freeze_balance < 2:
             user.freeze_balance += 1
     
-    # Update today's log status
-    today_log = get_active_log(db, habit_id)
-    if today_log:
-        today_log.status = "completed"
-        user.freeze_used_in_row = 0  # Reset consecutive freeze counter on completion
+    user.freeze_used_in_row = 0  # Reset consecutive freeze counter on completion
     
     db.commit()
     db.refresh(habit)
@@ -181,9 +236,20 @@ def use_freeze(db: Session, habit_id: int, user_id: int) -> dict:
     user.freeze_balance -= 1
     user.freeze_used_in_row += 1
     
-    today_log = get_active_log(db, habit_id)
-    if today_log:
-        today_log.status = "frozen"
+    now = datetime.now(timezone.utc)
+    today_logs = get_today_logs(db, habit_id, now)
+    if today_logs:
+        today_logs[-1].status = "frozen"
+    else:
+        freeze_log = models.HabitLog(
+            habit_id=habit_id,
+            start_time=now,
+            end_time=now,
+            duration_min=0,
+            is_manual=True,
+            status="frozen"
+        )
+        db.add(freeze_log)
     
     db.commit()
     db.refresh(user)
@@ -212,10 +278,10 @@ def get_color_for_habit(db: Session, habit: models.Habit) -> str:
     """Get color based on time of day and completion status."""
     pct_elapsed = get_percent_of_day_elapsed()
     
-    today_log = get_active_log(db, habit.id)
-    if today_log and today_log.status == "completed":
+    today_status = get_today_status(db, habit.id)
+    if today_status == "completed":
         return "green"
-    if today_log and today_log.status == "frozen":
+    if today_status == "frozen":
         return "blue"
     
     if pct_elapsed < 0.5:
@@ -231,8 +297,7 @@ def get_habit_status(db: Session, habit_id: int, user_id: int) -> dict:
     if not habit or habit.user_id != user_id:
         return None
     
-    today_log = get_active_log(db, habit_id)
-    status = today_log.status if today_log else "pending"
+    status = get_today_status(db, habit_id)
     in_danger = is_habit_in_danger(db, habit)
     color = get_color_for_habit(db, habit)
     
