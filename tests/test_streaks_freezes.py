@@ -9,7 +9,8 @@ def set_habit_and_user_state(
     habit_id: int,
     current_streak: int | None = None,
     freeze_balance: int | None = None,
-    freeze_used_in_row: int | None = None
+    freeze_used_in_row: int | None = None,
+    freezes_remaining: int | None = None
 ):
     with SessionLocal() as db:
         habit = db.query(models.Habit).filter(models.Habit.id == habit_id).first()
@@ -17,6 +18,8 @@ def set_habit_and_user_state(
             return
         if current_streak is not None:
             habit.current_streak = current_streak
+        if freezes_remaining is not None:
+            habit.freezes_remaining = freezes_remaining
         user = db.query(models.User).filter(models.User.id == habit.user_id).first()
         if user:
             if freeze_balance is not None:
@@ -73,7 +76,7 @@ class TestStreakTracking:
         """Should earn a freeze every 7 days of streak."""
         habit_id = test_habit["id"]
 
-        set_habit_and_user_state(habit_id, current_streak=6, freeze_balance=0)
+        set_habit_and_user_state(habit_id, current_streak=6, freezes_remaining=0)
 
         # 7th completion - earn freeze
         response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
@@ -81,28 +84,28 @@ class TestStreakTracking:
         assert data["success"] is True
         assert data["streak"] == 7
         assert data["freeze_earned"] is True
-        assert data["freeze_balance"] == 1
+        assert data["freezes_remaining"] == 1
 
     def test_earn_second_freeze_at_14_days(self, client, auth_headers, test_habit):
         """Should earn second freeze at 14 days."""
         habit_id = test_habit["id"]
 
-        set_habit_and_user_state(habit_id, current_streak=13, freeze_balance=1)
+        set_habit_and_user_state(habit_id, current_streak=13, freezes_remaining=1)
 
         response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
         data = response.json()
         assert data["streak"] == 14
-        assert data["freeze_balance"] == 2  # Max of 2
+        assert data["freezes_remaining"] == 2  # Max of 2
 
     def test_max_freeze_balance_is_2(self, client, auth_headers, test_habit):
         """Freeze balance should not exceed 2."""
         habit_id = test_habit["id"]
 
-        set_habit_and_user_state(habit_id, current_streak=20, freeze_balance=2)
+        set_habit_and_user_state(habit_id, current_streak=20, freezes_remaining=2)
 
         response = client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
         data = response.json()
-        assert data["freeze_balance"] == 2  # Should stay at 2, not 3
+        assert data["freezes_remaining"] == 2  # Should stay at 2, not 3
 
 
 class TestFreezeUsage:

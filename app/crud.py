@@ -235,10 +235,14 @@ def complete_habit(db: Session, habit_id: int, user_id: int) -> dict:
     # Increment streak
     habit.current_streak += 1
     
-    # Check if earned a freeze (every 7 days)
-    if habit.is_freezable and habit.current_streak > 0 and habit.current_streak % 7 == 0:
-        if user.freeze_balance < 2:
-            user.freeze_balance += 1
+    # Check if earned a freeze (at 7 and 14 day streaks - per habit)
+    if habit.is_freezable and habit.current_streak > 0:
+        if habit.current_streak % 7 == 0:  # 7, 14, 21, etc.
+            if habit.freezes_remaining < 2:
+                habit.freezes_remaining += 1
+        if habit.current_streak % 14 == 0:  # 14, 28, etc.
+            if habit.freezes_remaining < 2:
+                habit.freezes_remaining += 1
     
     user.freeze_used_in_row = 0  # Reset consecutive freeze counter on completion
     
@@ -250,7 +254,7 @@ def complete_habit(db: Session, habit_id: int, user_id: int) -> dict:
         "success": True,
         "streak": habit.current_streak,
         "freeze_earned": habit.current_streak % 7 == 0 and habit.is_freezable,
-        "freeze_balance": user.freeze_balance
+        "freezes_remaining": habit.freezes_remaining  # Per-habit freezes remaining
     }
 
 def use_freeze(db: Session, habit_id: int, user_id: int) -> dict:
@@ -333,11 +337,56 @@ def get_color_for_habit(db: Session, habit: models.Habit) -> str:
     else:
         return "red"
 
+def apply_automatic_freezes(db: Session, habit_id: int) -> None:
+    """Apply automatic freeze consumption if user has skipped 1-2 days, or kill streak if 3+ days."""
+    habit = get_habit_by_id(db, habit_id)
+    if not habit:
+        return
+    
+    # Get last completion date
+    last_completion = db.query(models.HabitLog).filter(
+        models.HabitLog.habit_id == habit_id,
+        models.HabitLog.status.in_(["completed", "frozen"])
+    ).order_by(models.HabitLog.start_time.desc()).first()
+    
+    if not last_completion:
+        # No completions yet, nothing to do
+        return
+    
+    # Calculate days since last completion
+    now = datetime.now(timezone.utc)
+    last_completion_date = last_completion.start_time.date()
+    today = now.date()
+    days_since = (today - last_completion_date).days
+    
+    if days_since >= 3:
+        # HARD RULE: Streak dies on day 3, no mercy
+        habit.current_streak = 0
+        db.commit()
+    elif days_since >= 1 and days_since <= 2:
+        # Days 1-2 of skipping: try to use a freeze
+        if habit.freezes_remaining > 0 and not has_completed_today(db, habit_id, now):
+            # Use the freeze automatically by creating a frozen log
+            habit.freezes_remaining -= 1
+            freeze_log = models.HabitLog(
+                habit_id=habit_id,
+                start_time=now,
+                end_time=now,
+                duration_min=0,
+                is_manual=False,  # Automatic
+                status="frozen"
+            )
+            db.add(freeze_log)
+            db.commit()
+
 def get_habit_status(db: Session, habit_id: int, user_id: int) -> dict:
     """Get daily status of a habit."""
     habit = get_habit_by_id(db, habit_id)
     if not habit or habit.user_id != user_id:
         return None
+    
+    # Apply automatic freezes first (handles skipped days)
+    apply_automatic_freezes(db, habit_id)
     
     status = get_today_status(db, habit_id)
     in_danger = is_habit_in_danger(db, habit)
