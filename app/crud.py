@@ -298,7 +298,8 @@ def use_freeze(db: Session, habit_id: int, user_id: int) -> dict:
     return {
         "success": True,
         "freezes_remaining": habit.freezes_remaining,
-        "freeze_balance": user.freeze_balance  # Kept for backward compatibility
+        "freeze_balance": user.freeze_balance,  # Kept for backward compatibility
+        "freeze_used_in_row": user.freeze_used_in_row
     }
 
 def get_percent_of_day_elapsed() -> float:

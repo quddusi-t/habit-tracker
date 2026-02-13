@@ -240,8 +240,7 @@ class TestFreezeStats:
 
         with SessionLocal() as db:
             habit = db.query(models.Habit).filter(models.Habit.id == habit_id).first()
-            user = db.query(models.User).filter(models.User.id == habit.user_id).first()
-            user.freeze_balance = 3
+            habit.freezes_remaining = 3  # Set per-habit freezes remaining
             db.commit()
 
         response = client.get(f"/habits/{habit_id}/stats", headers=auth_headers)
