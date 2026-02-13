@@ -1,18 +1,19 @@
 # Habit Tracker API
 
-A **production-ready** FastAPI backend for habit tracking with **JWT authentication**, **streak tracking**, and **freeze system** (Duolingo-style gamification).
+A **production-ready** FastAPI backend for habit tracking with **JWT authentication**, **per-habit streak freezes**, and **comprehensive stats** (Duolingo-style gamification).
 
 ## ✨ Features
 
 - 🔐 **JWT Authentication** - Secure user registration and login
-- 📊 **Habit Management** - Create, update, delete, and track habits
-- ⏱️ **Session Logging** - Start/stop timed habit sessions
-- 🔥 **Streak Tracking** - Earn consecutive day streaks
-- ❄️ **Streak Freezes** - Earn freezes every 7 days, use max 2 in a row
-- ⚠️ **Danger Windows** - Habits become "in danger" based on time of day
-- 🎨 **Color Aging** - Visual feedback (yellow → orange → red) as day progresses
-- ✅ **85% Test Coverage** - 36 comprehensive tests with pytest
-- 🗄️ **PostgreSQL** - Production database with Alembic migrations
+- 📊 **Habit Management** - Create, update, delete, and track habits with per-habit freeze system
+- ⏱️ **Session Logging** - Start/stop timed habit sessions + manual time entry
+- 🔥 **Streak Tracking** - Earn consecutive day streaks with automatic daily calculation
+- ❄️ **Per-Habit Freezes** - 2 freezes per habit (initial), auto-consume on skips, earn at 7/14 day streaks
+- ⚠️ **Danger Windows** - Habits become "in danger" based on time of day progression
+- 🎨 **Status Colors** - Dynamic color feedback (green/yellow/orange/red/blue) for habit state
+- 📈 **Comprehensive Stats** - Timer metrics, manual metrics, streaks, freezes tracking
+- ✅ **84% Test Coverage** - 54 comprehensive tests with pytest (54/54 passing ✅)
+- 🗄️ **PostgreSQL** - Production database with Alembic migrations (safe rollback)
 
 ## 🚀 Tech Stack
 
@@ -90,13 +91,21 @@ Interactive docs: **http://127.0.0.1:8000/docs**
 
 ```bash
 # Run all tests
-pytest tests/
+pytest tests/ -q
 
 # With coverage report
 pytest tests/ --cov=app --cov-report=term-missing
 ```
 
-**Current Coverage: 85%** (440 statements, 67 missed)
+**Current Status:** ✅ 54/54 tests passing | **Coverage: 84%** (607 statements, 100 missed)
+
+### Test Breakdown:
+- 100% coverage: models.py, schemas.py, database.py
+- 97% coverage: routers/habits.py (main endpoints)
+- 89% coverage: utils.py, auth.py
+- 75% coverage: crud.py (complex business logic)
+- 68% coverage: routers/habit_logs.py (manual logs, session logging)
+- 57% coverage: routers/users.py (account management)
 
 ## 📖 API Endpoints
 
