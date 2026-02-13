@@ -37,3 +37,9 @@ def get_active_session(habit_id: int, db: Session = Depends(database.get_db)):
     if habit is None:
         raise HTTPException(status_code=404, detail="Habit not found")
     return crud.get_active_log(db, habit_id)
+@router.post("/{habit_id}/logs", response_model=schemas.HabitLog, status_code=201)
+def create_manual_log(habit_id: int, log_data: schemas.ManualLogCreate, db: Session = Depends(database.get_db)):
+    habit = crud.get_habit_by_id(db, habit_id)
+    if habit is None:
+        raise HTTPException(status_code=404, detail="Habit not found")
+    return crud.create_manual_log(db, habit_id, log_data.duration_min, log_data.notes)

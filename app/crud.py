@@ -82,6 +82,43 @@ def stop_log(db: Session, log):
     db.refresh(log)
     return log
 
+def create_manual_log(db: Session, habit_id: int, duration_min: int, notes: str = ""):
+    """Create a manual log entry for a habit (e.g., time entered via time picker)."""
+    now = datetime.now(timezone.utc)
+    
+    # Validate habit exists
+    habit = get_habit_by_id(db, habit_id)
+    if not habit:
+        raise ValueError(f"Habit {habit_id} not found")
+    
+    # Create the manual log
+    new_log = models.HabitLog(
+        habit_id=habit_id,
+        start_time=now,
+        end_time=now,
+        duration_min=duration_min,
+        is_manual=True,
+        notes=notes or "",
+        status="completed"
+    )
+    db.add(new_log)
+    db.flush()  # Flush to assign ID without committing
+    
+    # Get user for streak/freeze updates
+    user = get_user_by_id(db, habit.user_id) if habit else None
+    
+    # Update streak and freezes if this is the first completion today
+    if habit and user and not has_completed_today(db, habit.id, now, exclude_log_id=new_log.id):
+        habit.current_streak += 1
+        if habit.is_freezable and habit.current_streak > 0 and habit.current_streak % 7 == 0:
+            if user.freeze_balance < 2:
+                user.freeze_balance += 1
+        user.freeze_used_in_row = 0
+    
+    db.commit()
+    db.refresh(new_log)
+    return new_log
+
 def get_logs_for_habit(db: Session, habit_id: int):
     return db.query(models.HabitLog).filter(models.HabitLog.habit_id == habit_id).all()
 

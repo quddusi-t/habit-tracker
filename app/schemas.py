@@ -49,6 +49,11 @@ class HabitLogCreate(HabitLogBase):
     habit_id: int
     is_manual: bool = False
 
+class ManualLogCreate(HabitLogBase):
+    duration_min: int
+    notes: Optional[str] = None
+    is_manual: bool = True
+
 class HabitLogStop(BaseModel):
     end_time: datetime
 
