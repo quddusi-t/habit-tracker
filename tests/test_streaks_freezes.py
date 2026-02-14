@@ -202,7 +202,7 @@ class TestHabitStatus:
         assert status.habit_id == habit_id
         assert status.status == "pending"
         assert status.current_streak == 0
-        assert status.in_danger in [True, False]  # Depends on time of day
+        # Danger is now indicated by freeze count badge, not a separate field
         assert status.color in ["yellow", "orange", "red"]
 
     def test_get_habit_status_after_completion(self, client, auth_headers, test_habit):
@@ -236,8 +236,8 @@ class TestColorAging:
         response = client.get(f"/habits/{habit_id}/status", headers=auth_headers)
         status = response.json()
         
-        # Just verify color is one of the expected values
-        assert status["color"] in ["yellow", "orange", "red", "green", "blue"]
+        # Just verify color is one of the expected values (4-color system: no blue)
+        assert status["color"] in ["yellow", "orange", "red", "green"]
 
     def test_completed_habit_shows_green(self, client, auth_headers):
         """Completed habits should show green regardless of time."""
@@ -250,17 +250,17 @@ class TestColorAging:
         # Complete it
         client.post(f"/habits/{habit_id}/complete", headers=auth_headers)
         
-        # Check color (would be green if log status is tracked properly)
+        # Check color (would be green if log status is tracked properly, 4-color system)
         response = client.get(f"/habits/{habit_id}/status", headers=auth_headers)
         status = response.json()
-        assert status["color"] in ["yellow", "orange", "red", "green", "blue"]
+        assert status["color"] in ["yellow", "orange", "red", "green"]
 
 
 class TestDangerWindow:
     """Test danger detection based on danger_start_pct."""
 
     def test_danger_window_detection(self, client, auth_headers):
-        """Habits should show in_danger when past threshold."""
+        """Habits should calculate danger status based on time and completion."""
         # Create habit with early danger threshold
         habit_payload = {"name": "Danger Test", "danger_start_pct": 0.1}
         habit_response = client.post("/habits/", json=habit_payload, headers=auth_headers)
@@ -269,11 +269,13 @@ class TestDangerWindow:
         response = client.get(f"/habits/{habit_id}/status", headers=auth_headers)
         status = response.json()
         
-        # With 0.1 threshold, should likely be in danger (unless run at midnight)
-        assert isinstance(status["in_danger"], bool)
+        # Verify status endpoint responds correctly and returns a 4-color system
+        assert "color" in status
+        assert status["color"] in ["yellow", "orange", "red", "green"]
+        assert status["status"] in ["pending", "completed", "missed"]
 
     def test_danger_window_with_high_threshold(self, client, auth_headers):
-        """High threshold (0.99) should not be in danger."""
+        """High threshold (0.99) should keep habit safe most of the day."""
         habit_payload = {"name": "Safe Habit", "danger_start_pct": 0.99}
         habit_response = client.post("/habits/", json=habit_payload, headers=auth_headers)
         habit_id = habit_response.json()["id"]
@@ -281,5 +283,7 @@ class TestDangerWindow:
         response = client.get(f"/habits/{habit_id}/status", headers=auth_headers)
         status = response.json()
         
-        # Should not be in danger with 99% threshold (unless at 11:59 PM)
-        assert isinstance(status["in_danger"], bool)
+        # Verify endpoint works and returns valid color/status (danger indicated by color change)
+        assert "color" in status
+        assert status["color"] in ["yellow", "orange", "red", "green"]
+        assert status["status"] in ["pending", "completed", "missed"]
