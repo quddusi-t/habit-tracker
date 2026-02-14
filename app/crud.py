@@ -317,18 +317,21 @@ def get_percent_of_day_elapsed() -> float:
 
 def is_habit_in_danger(db: Session, habit: models.Habit) -> bool:
     """Check if habit is in danger (late in day and not completed)."""
+    today_status = get_today_status(db, habit.id)
+    # Only show danger if NOT completed
+    if today_status == "completed":
+        return False
     pct_elapsed = get_percent_of_day_elapsed()
     return pct_elapsed >= habit.danger_start_pct
 
 def get_color_for_habit(db: Session, habit: models.Habit) -> str:
-    """Get color based on time of day and completion status."""
+    """Get color based on time of day and completion status (4 colors: green, yellow, orange, red)."""
     pct_elapsed = get_percent_of_day_elapsed()
     
     today_status = get_today_status(db, habit.id)
     if today_status == "completed":
         return "green"
-    if today_status == "frozen":
-        return "blue"
+    # Frozen counts as pending for color purposes (freeze was used, but still need to complete tomorrow)
     
     if pct_elapsed < 0.5:
         return "yellow"
@@ -389,14 +392,13 @@ def get_habit_status(db: Session, habit_id: int, user_id: int) -> dict:
     apply_automatic_freezes(db, habit_id)
     
     status = get_today_status(db, habit_id)
-    in_danger = is_habit_in_danger(db, habit)
     color = get_color_for_habit(db, habit)
+    # Note: in_danger removed - freeze count is the main indicator of danger
     
     return {
         "habit_id": habit_id,
         "status": status,
         "current_streak": habit.current_streak,
-        "in_danger": in_danger,
         "color": color
     }
 

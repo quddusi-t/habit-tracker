@@ -73,8 +73,7 @@ class HabitStatus(BaseModel):
     habit_id: int
     status: str  # pending, completed, missed, frozen
     current_streak: int
-    in_danger: bool
-    color: str  # yellow, orange, red, green, blue
+    color: str  # yellow, orange, red, green
 
 # -------------------------
 # Habit Stats Schemas
