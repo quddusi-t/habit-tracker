@@ -9,8 +9,8 @@ A **production-ready** FastAPI backend for habit tracking with **JWT authenticat
 - ⏱️ **Session Logging** - Start/stop timed habit sessions + manual time entry
 - 🔥 **Streak Tracking** - Earn consecutive day streaks with automatic daily calculation
 - ❄️ **Per-Habit Freezes** - 2 freezes per habit (initial), auto-consume on skips, earn at 7/14 day streaks
-- ⚠️ **Danger Windows** - Habits become "in danger" based on time of day progression
-- 🎨 **Status Colors** - Dynamic color feedback (green/yellow/orange/red/blue) for habit state
+- 🔴 **Danger Detection** - Orange/Red colors indicate time-based urgency; freeze count badge shows risk level
+- 🎨 **Status Colors** - Dynamic 4-color feedback (green/yellow/orange/red) + separate freeze badge
 - 📈 **Comprehensive Stats** - Timer metrics, manual metrics, streaks, freezes tracking
 - ✅ **84% Test Coverage** - 54 comprehensive tests with pytest (54/54 passing ✅)
 - 🗄️ **PostgreSQL** - Production database with Alembic migrations (safe rollback)
@@ -97,7 +97,7 @@ pytest tests/ -q
 pytest tests/ --cov=app --cov-report=term-missing
 ```
 
-**Current Status:** ✅ 54/54 tests passing | **Coverage: 84%** (607 statements, 100 missed)
+**Current Status:** ✅ 18/18 streaks/freezes tests passing | **Coverage: 84%** | **Day 2 Features:** Account Settings, 4-color system, timezone fix queued
 
 ### Test Breakdown:
 - 100% coverage: models.py, schemas.py, database.py
